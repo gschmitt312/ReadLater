@@ -10,10 +10,16 @@
   <header>
     <div class="header-inner">
       <h1>&#128278; ReadLater</h1>
-      <nav class="header-actions">
+      <nav class="header-nav">
+        <button class="nav-tab active" data-view="all">All</button>
+        <button class="nav-tab" data-view="queue">
+          Queue <span id="queue-badge" class="badge hidden">0</span>
+        </button>
+      </nav>
+      <div class="header-actions">
         <a href="/api/bookmarks/export?fmt=json" class="btn btn-ghost" title="Export JSON">&#8595; JSON</a>
         <a href="/api/bookmarks/export?fmt=csv" class="btn btn-ghost" title="Export CSV">&#8595; CSV</a>
-      </nav>
+      </div>
     </div>
   </header>
 
@@ -40,32 +46,66 @@
       <div id="add-error" class="error-msg hidden"></div>
     </section>
 
-    <!-- Filters -->
-    <section class="filter-bar">
-      <input id="search-input" type="search" placeholder="&#128269; Search…" />
-      <div class="filter-chips">
-        <button class="chip active" data-type="">All</button>
-        <button class="chip" data-type="web">&#127760; Web</button>
-        <button class="chip" data-type="twitter">&#120143; Twitter/X</button>
-        <button class="chip" data-type="youtube">&#9654; YouTube</button>
+    <!-- ── ALL VIEW ── -->
+    <div id="view-all">
+      <!-- Filters -->
+      <section class="filter-bar">
+        <input id="search-input" type="search" placeholder="&#128269; Search…" />
+        <div class="filter-chips">
+          <button class="chip active" data-type="">All</button>
+          <button class="chip" data-type="web">&#127760; Web</button>
+          <button class="chip" data-type="twitter">&#120143; Twitter/X</button>
+          <button class="chip" data-type="youtube">&#9654; YouTube</button>
+        </div>
+        <div class="filter-chips" id="read-filter">
+          <button class="chip active" data-read="">All</button>
+          <button class="chip" data-read="false">Unread</button>
+          <button class="chip" data-read="true">Read</button>
+        </div>
+      </section>
+
+      <!-- Tag cloud -->
+      <section id="tag-cloud" class="tag-cloud hidden"></section>
+
+      <!-- Bookmark list -->
+      <section id="bookmark-list" class="bookmark-list">
+        <div id="loading" class="loading">Loading…</div>
+      </section>
+
+      <div id="empty-state" class="empty-state hidden">
+        <p>No bookmarks yet. Paste a URL above to get started!</p>
       </div>
-      <div class="filter-chips" id="read-filter">
-        <button class="chip active" data-read="">All</button>
-        <button class="chip" data-read="false">Unread</button>
-        <button class="chip" data-read="true">Read</button>
+    </div>
+
+    <!-- ── QUEUE VIEW ── -->
+    <div id="view-queue" class="hidden">
+      <div class="queue-header">
+        <div>
+          <h2 class="queue-title">Reading Queue</h2>
+          <p class="queue-subtitle">Unread bookmarks — oldest first. Open each one and work through your list.</p>
+        </div>
+        <button id="queue-mark-all" class="btn btn-ghost">Mark all read</button>
       </div>
-    </section>
 
-    <!-- Tag cloud -->
-    <section id="tag-cloud" class="tag-cloud hidden"></section>
+      <div id="queue-progress" class="queue-progress hidden">
+        <div class="progress-bar">
+          <div id="progress-fill" class="progress-fill"></div>
+        </div>
+        <span id="progress-label" class="progress-label"></span>
+      </div>
 
-    <!-- Bookmark list -->
-    <section id="bookmark-list" class="bookmark-list">
-      <div id="loading" class="loading">Loading…</div>
-    </section>
+      <!-- Next up card -->
+      <div id="queue-next" class="queue-next hidden">
+        <div class="queue-next-label">Up next</div>
+        <div id="queue-next-card"></div>
+      </div>
 
-    <div id="empty-state" class="empty-state hidden">
-      <p>No bookmarks yet. Paste a URL above to get started!</p>
+      <!-- Remaining list -->
+      <section id="queue-list" class="bookmark-list"></section>
+
+      <div id="queue-empty" class="empty-state hidden">
+        <p>&#127881; All caught up! Nothing left to read.</p>
+      </div>
     </div>
   </main>
 

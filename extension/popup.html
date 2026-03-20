@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReadLater</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <!-- Main save view -->
+  <div id="view-save">
+    <header>
+      <span class="logo">&#128278; ReadLater</span>
+      <button class="icon-btn" id="settings-btn" title="Settings">&#9881;</button>
+    </header>
+
+    <div id="url-preview" class="url-preview"></div>
+
+    <div class="field">
+      <input
+        id="tags-input"
+        type="text"
+        placeholder="Tags (comma-separated)"
+        autocomplete="off"
+      />
+    </div>
+
+    <button id="save-btn" class="btn-primary">
+      &#128190; Save to ReadLater
+    </button>
+
+    <div id="status" class="status hidden"></div>
+
+    <a id="open-app" class="open-app" target="_blank">Open ReadLater &#8599;</a>
+  </div>
+
+  <!-- Settings view -->
+  <div id="view-settings" class="hidden">
+    <header>
+      <button class="icon-btn" id="back-btn" title="Back">&#8592;</button>
+      <span class="logo">Settings</span>
+    </header>
+
+    <div class="field">
+      <label for="server-input">Server URL</label>
+      <input
+        id="server-input"
+        type="url"
+        placeholder="http://localhost:8000"
+        autocomplete="off"
+      />
+    </div>
+
+    <button id="save-settings-btn" class="btn-primary">Save</button>
+    <div id="settings-status" class="status hidden"></div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

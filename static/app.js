@@ -4,6 +4,7 @@ const API = "/api/bookmarks";
 
 // ── State ──────────────────────────────────────────────────────────────────
 let state = {
+  view: "all",   // "all" | "queue"
   q: "",
   type: "",
   read: "",
@@ -12,22 +13,56 @@ let state = {
 let searchDebounce = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────
-const addForm     = document.getElementById("add-form");
-const urlInput    = document.getElementById("url-input");
-const tagsInput   = document.getElementById("tags-input");
-const addBtn      = document.getElementById("add-btn");
-const addError    = document.getElementById("add-error");
-const searchInput = document.getElementById("search-input");
-const listEl      = document.getElementById("bookmark-list");
-const emptyEl     = document.getElementById("empty-state");
-const loadingEl   = document.getElementById("loading");
-const tagCloud    = document.getElementById("tag-cloud");
+const addForm      = document.getElementById("add-form");
+const urlInput     = document.getElementById("url-input");
+const tagsInput    = document.getElementById("tags-input");
+const addBtn       = document.getElementById("add-btn");
+const addError     = document.getElementById("add-error");
+const searchInput  = document.getElementById("search-input");
+const listEl       = document.getElementById("bookmark-list");
+const emptyEl      = document.getElementById("empty-state");
+const loadingEl    = document.getElementById("loading");
+const tagCloud     = document.getElementById("tag-cloud");
+const queueBadge   = document.getElementById("queue-badge");
+// Queue
+const viewAll      = document.getElementById("view-all");
+const viewQueue    = document.getElementById("view-queue");
+const queueNext    = document.getElementById("queue-next");
+const queueNextCard= document.getElementById("queue-next-card");
+const queueList    = document.getElementById("queue-list");
+const queueEmpty   = document.getElementById("queue-empty");
+const queueProgress= document.getElementById("queue-progress");
+const progressFill = document.getElementById("progress-fill");
+const progressLabel= document.getElementById("progress-label");
+const markAllBtn   = document.getElementById("queue-mark-all");
 
 // ── Init ──────────────────────────────────────────────────────────────────
 (async function init() {
-  await Promise.all([loadBookmarks(), loadTagCloud()]);
+  await Promise.all([loadBookmarks(), loadTagCloud(), refreshQueueBadge()]);
   bindFilters();
+  bindNavTabs();
 })();
+
+// ── Nav tabs ──────────────────────────────────────────────────────────────
+function bindNavTabs() {
+  document.querySelectorAll(".nav-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".nav-tab").forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      state.view = tab.dataset.view;
+      if (state.view === "queue") {
+        viewAll.classList.add("hidden");
+        viewQueue.classList.remove("hidden");
+        loadQueue();
+      } else {
+        viewQueue.classList.add("hidden");
+        viewAll.classList.remove("hidden");
+      }
+    });
+  });
+
+  markAllBtn.addEventListener("click", markAllRead);
+}
 
 // ── Add bookmark ──────────────────────────────────────────────────────────
 addForm.addEventListener("submit", async (e) => {
@@ -57,16 +92,19 @@ addForm.addEventListener("submit", async (e) => {
     }
     urlInput.value  = "";
     tagsInput.value = "";
-    await Promise.all([loadBookmarks(), loadTagCloud()]);
+    if (state.view === "queue") {
+      await Promise.all([loadQueue(), refreshQueueBadge()]);
+    } else {
+      await Promise.all([loadBookmarks(), loadTagCloud(), refreshQueueBadge()]);
+    }
   } finally {
     addBtn.disabled = false;
     addBtn.textContent = "Save";
   }
 });
 
-// ── Filters ───────────────────────────────────────────────────────────────
+// ── Filters (All view) ────────────────────────────────────────────────────
 function bindFilters() {
-  // Type chips
   document.querySelectorAll(".chip[data-type]").forEach(chip => {
     chip.addEventListener("click", () => {
       document.querySelectorAll(".chip[data-type]").forEach(c => c.classList.remove("active"));
@@ -76,7 +114,6 @@ function bindFilters() {
     });
   });
 
-  // Read chips
   document.querySelectorAll(".chip[data-read]").forEach(chip => {
     chip.addEventListener("click", () => {
       document.querySelectorAll(".chip[data-read]").forEach(c => c.classList.remove("active"));
@@ -86,7 +123,6 @@ function bindFilters() {
     });
   });
 
-  // Search
   searchInput.addEventListener("input", () => {
     clearTimeout(searchDebounce);
     searchDebounce = setTimeout(() => {
@@ -96,7 +132,7 @@ function bindFilters() {
   });
 }
 
-// ── Load bookmarks ────────────────────────────────────────────────────────
+// ── Load bookmarks (All view) ─────────────────────────────────────────────
 async function loadBookmarks() {
   loadingEl.classList.remove("hidden");
   listEl.innerHTML = "";
@@ -117,6 +153,84 @@ async function loadBookmarks() {
 
   if (items.length === 0) { emptyEl.classList.remove("hidden"); return; }
   items.forEach(item => listEl.appendChild(renderCard(item)));
+}
+
+// ── Queue view ────────────────────────────────────────────────────────────
+async function loadQueue() {
+  queueNext.classList.add("hidden");
+  queueList.innerHTML = "";
+  queueEmpty.classList.add("hidden");
+  queueProgress.classList.add("hidden");
+
+  // Fetch unread (queue order = oldest first) and total
+  const [unreadRes, totalRes] = await Promise.all([
+    fetch(`${API}/?read=false&limit=100`),
+    fetch(`${API}/?limit=1`),
+  ]);
+  const unread = await unreadRes.json();
+
+  // Count total for progress
+  const totalItems = await fetchTotalCount();
+  const readCount  = totalItems - unread.length;
+
+  // Progress bar
+  if (totalItems > 0) {
+    queueProgress.classList.remove("hidden");
+    const pct = Math.round((readCount / totalItems) * 100);
+    progressFill.style.width = pct + "%";
+    progressLabel.textContent = `${readCount} / ${totalItems} read`;
+  }
+
+  if (unread.length === 0) {
+    queueEmpty.classList.remove("hidden");
+    return;
+  }
+
+  // Sort oldest-first (they come newest-first from API)
+  const sorted = [...unread].reverse();
+
+  // "Up next" card
+  const next = sorted[0];
+  queueNextCard.innerHTML = "";
+  const nextCard = renderCard(next, { queueMode: true });
+  queueNextCard.appendChild(nextCard);
+  queueNext.classList.remove("hidden");
+
+  // Remaining list
+  const remaining = sorted.slice(1);
+  remaining.forEach(item => queueList.appendChild(renderCard(item)));
+}
+
+async function fetchTotalCount() {
+  const res = await fetch(`${API}/?limit=200`);
+  if (!res.ok) return 0;
+  const items = await res.json();
+  return items.length;
+}
+
+async function markAllRead() {
+  const res = await fetch(`${API}/?read=false&limit=200`);
+  const items = await res.json();
+  await Promise.all(
+    items.map(item =>
+      fetch(`${API}/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ read: true }),
+      })
+    )
+  );
+  await Promise.all([loadQueue(), refreshQueueBadge()]);
+}
+
+// ── Queue badge ───────────────────────────────────────────────────────────
+async function refreshQueueBadge() {
+  const res = await fetch(`${API}/?read=false&limit=200`);
+  if (!res.ok) return;
+  const items = await res.json();
+  const count = items.length;
+  queueBadge.textContent = count;
+  queueBadge.classList.toggle("hidden", count === 0);
 }
 
 // ── Tag cloud ─────────────────────────────────────────────────────────────
@@ -150,7 +264,9 @@ function toggleTagFilter(tag, btn) {
 }
 
 // ── Render a bookmark card ────────────────────────────────────────────────
-function renderCard(item) {
+function renderCard(item, opts = {}) {
+  const { queueMode = false } = opts;
+
   const card = document.createElement("div");
   card.className = "card" + (item.read ? " is-read" : "");
   card.dataset.id = item.id;
@@ -195,7 +311,7 @@ function renderCard(item) {
     t.className = "card-tag";
     t.textContent = "#" + tag;
     t.addEventListener("click", () => {
-      // Filter by this tag
+      if (state.view !== "all") return;
       document.querySelectorAll(".tag-btn").forEach(b => {
         b.classList.toggle("active", b.textContent === "#" + tag);
       });
@@ -225,11 +341,28 @@ function renderCard(item) {
   const actions = document.createElement("div");
   actions.className = "card-actions";
 
+  if (queueMode) {
+    // "Open & mark read" button for queue next-up card
+    const openBtn = document.createElement("button");
+    openBtn.className = "queue-open-btn";
+    openBtn.textContent = "Open ↗";
+    openBtn.addEventListener("click", async () => {
+      window.open(item.url, "_blank", "noopener,noreferrer");
+      await markRead(item);
+      await Promise.all([loadQueue(), refreshQueueBadge()]);
+    });
+    actions.appendChild(openBtn);
+  }
+
   const readBtn = document.createElement("button");
   readBtn.className = "btn-icon";
   readBtn.title = item.read ? "Mark unread" : "Mark read";
   readBtn.textContent = item.read ? "✓" : "○";
-  readBtn.addEventListener("click", () => toggleRead(item, card, readBtn));
+  readBtn.addEventListener("click", async () => {
+    await toggleRead(item, card, readBtn);
+    if (state.view === "queue") await Promise.all([loadQueue(), refreshQueueBadge()]);
+    else await refreshQueueBadge();
+  });
   actions.appendChild(readBtn);
 
   const delBtn = document.createElement("button");
@@ -253,6 +386,15 @@ function placeholderThumb(type) {
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────
+async function markRead(item) {
+  await fetch(`${API}/${item.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ read: true }),
+  });
+  item.read = true;
+}
+
 async function toggleRead(item, card, btn) {
   const newRead = !item.read;
   await fetch(`${API}/${item.id}`, {
@@ -271,8 +413,12 @@ async function deleteBookmark(id, card) {
   const res = await fetch(`${API}/${id}`, { method: "DELETE" });
   if (res.ok || res.status === 204) {
     card.remove();
-    await loadTagCloud();
-    if (listEl.childElementCount === 0) emptyEl.classList.remove("hidden");
+    await Promise.all([loadTagCloud(), refreshQueueBadge()]);
+    if (state.view === "queue") {
+      await loadQueue();
+    } else if (listEl.childElementCount === 0) {
+      emptyEl.classList.remove("hidden");
+    }
   }
 }
 
