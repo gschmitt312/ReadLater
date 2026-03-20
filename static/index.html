@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReadLater</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <h1>&#128278; ReadLater</h1>
+      <nav class="header-actions">
+        <a href="/api/bookmarks/export?fmt=json" class="btn btn-ghost" title="Export JSON">&#8595; JSON</a>
+        <a href="/api/bookmarks/export?fmt=csv" class="btn btn-ghost" title="Export CSV">&#8595; CSV</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- Add bookmark -->
+    <section class="add-section">
+      <form id="add-form">
+        <input
+          id="url-input"
+          type="url"
+          placeholder="Paste a URL — web, Twitter/X, or YouTube…"
+          required
+          autocomplete="off"
+        />
+        <input
+          id="tags-input"
+          type="text"
+          placeholder="Tags (comma-separated, optional)"
+        />
+        <button type="submit" class="btn btn-primary" id="add-btn">
+          Save
+        </button>
+      </form>
+      <div id="add-error" class="error-msg hidden"></div>
+    </section>
+
+    <!-- Filters -->
+    <section class="filter-bar">
+      <input id="search-input" type="search" placeholder="&#128269; Search…" />
+      <div class="filter-chips">
+        <button class="chip active" data-type="">All</button>
+        <button class="chip" data-type="web">&#127760; Web</button>
+        <button class="chip" data-type="twitter">&#120143; Twitter/X</button>
+        <button class="chip" data-type="youtube">&#9654; YouTube</button>
+      </div>
+      <div class="filter-chips" id="read-filter">
+        <button class="chip active" data-read="">All</button>
+        <button class="chip" data-read="false">Unread</button>
+        <button class="chip" data-read="true">Read</button>
+      </div>
+    </section>
+
+    <!-- Tag cloud -->
+    <section id="tag-cloud" class="tag-cloud hidden"></section>
+
+    <!-- Bookmark list -->
+    <section id="bookmark-list" class="bookmark-list">
+      <div id="loading" class="loading">Loading…</div>
+    </section>
+
+    <div id="empty-state" class="empty-state hidden">
+      <p>No bookmarks yet. Paste a URL above to get started!</p>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
