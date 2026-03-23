@@ -4,12 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ReadLater</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
   <header>
     <div class="header-inner">
-      <h1>&#128278; ReadLater</h1>
+      <h1>ReadLater</h1>
       <nav class="header-nav">
         <button class="nav-tab active" data-view="all">All</button>
         <button class="nav-tab" data-view="queue">
@@ -30,7 +32,7 @@
         <input
           id="url-input"
           type="url"
-          placeholder="Paste a URL — web, Twitter/X, or YouTube…"
+          placeholder="Paste a URL to save — web article, Twitter/X, or YouTube…"
           required
           autocomplete="off"
         />
@@ -82,7 +84,7 @@
       <div class="queue-header">
         <div>
           <h2 class="queue-title">Reading Queue</h2>
-          <p class="queue-subtitle">Unread bookmarks — oldest first. Open each one and work through your list.</p>
+          <p class="queue-subtitle">Your unread articles, oldest first. Open each and work through your list.</p>
         </div>
         <button id="queue-mark-all" class="btn btn-ghost">Mark all read</button>
       </div>
