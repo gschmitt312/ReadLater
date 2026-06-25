@@ -4,6 +4,7 @@ import { downloadCSV, positionsToCSV } from "./csv.js";
 import { fmtUSD } from "./format.js";
 import HoldingsTable from "./components/HoldingsTable.jsx";
 import CompareView from "./components/CompareView.jsx";
+import PerformancePanel from "./components/PerformancePanel.jsx";
 
 const EXAMPLES = [
   { label: "Berkshire Hathaway", id: "0001067983" },
@@ -106,6 +107,8 @@ export default function App() {
                   </div>
                 </div>
               </section>
+
+              <PerformancePanel performance={report.performance} period={report.period} />
 
               <HoldingsTable positions={report.positions} />
 

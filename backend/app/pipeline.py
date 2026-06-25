@@ -45,6 +45,32 @@ class PositionRow:
 
 
 @dataclass
+class Contribution:
+    """One position's contribution to the estimated since-filing return."""
+
+    ticker: str
+    name: str
+    weight_pct: float  # share of the priced book, by reported value
+    price_change_pct: float  # current price vs reported quarter-end price
+    contribution_pct: float  # weight x return; these sum to estimated_return_pct
+
+
+@dataclass
+class Performance:
+    """Estimated mark-to-market performance of the reported book since the
+    filing's quarter-end. Price-only: 13F omits cash, shorts, and intra-quarter
+    trades, so this is the return of the disclosed long book, not the fund's."""
+
+    period: str
+    estimated_return_pct: float
+    coverage_pct: float  # fraction of portfolio value that has a live price
+    reported_value_priced: float
+    implied_value_priced: float
+    contributors: list[Contribution] = field(default_factory=list)
+    detractors: list[Contribution] = field(default_factory=list)
+
+
+@dataclass
 class PortfolioReport:
     cik: str
     manager_name: str
@@ -54,6 +80,7 @@ class PortfolioReport:
     total_value_usd: float
     positions: list[PositionRow] = field(default_factory=list)
     closed_positions: list[PositionRow] = field(default_factory=list)
+    performance: Optional[Performance] = None
 
     @property
     def num_positions(self) -> int:
@@ -113,6 +140,8 @@ def build_report(
     positions.sort(key=lambda r: r.value_usd, reverse=True)
     closed.sort(key=lambda r: r.prev_shares, reverse=True)
 
+    performance = compute_performance(positions, current.filing.quarter_label, total_value)
+
     return PortfolioReport(
         cik=cik,
         manager_name=manager_name,
@@ -122,6 +151,63 @@ def build_report(
         total_value_usd=total_value,
         positions=positions,
         closed_positions=closed,
+        performance=performance,
+    )
+
+
+def compute_performance(
+    positions: list[PositionRow], period: str, total_value: float, top_n: int = 8
+) -> Performance:
+    """Estimate the reported book's mark-to-market return since quarter-end.
+
+    Only positions with a live price participate. Weights are normalized over
+    that priced subset, so per-position contributions sum exactly to the headline
+    estimated return. ``coverage_pct`` says how much of the book is measured.
+    """
+    priced = [
+        p
+        for p in positions
+        if p.price is not None and p.implied_value is not None and p.value_usd > 0
+    ]
+    reported_priced = sum(p.value_usd for p in priced)
+    implied_priced = sum(p.implied_value for p in priced)
+
+    if not priced or reported_priced <= 0:
+        return Performance(
+            period=period,
+            estimated_return_pct=0.0,
+            coverage_pct=0.0,
+            reported_value_priced=0.0,
+            implied_value_priced=0.0,
+        )
+
+    est_return = (implied_priced / reported_priced - 1.0) * 100.0
+    contribs: list[Contribution] = []
+    for p in priced:
+        # contribution reconciles to est_return: sum_i (implied_i - reported_i)/reported_priced
+        contribution = (p.implied_value - p.value_usd) / reported_priced * 100.0
+        contribs.append(
+            Contribution(
+                ticker=p.ticker or p.cusip,
+                name=p.name,
+                weight_pct=p.value_usd / reported_priced * 100.0,
+                price_change_pct=p.price_change_pct or 0.0,
+                contribution_pct=contribution,
+            )
+        )
+
+    contribs.sort(key=lambda c: c.contribution_pct, reverse=True)
+    contributors = [c for c in contribs if c.contribution_pct > 0][:top_n]
+    detractors = [c for c in reversed(contribs) if c.contribution_pct < 0][:top_n]
+
+    return Performance(
+        period=period,
+        estimated_return_pct=est_return,
+        coverage_pct=(reported_priced / total_value * 100.0) if total_value else 0.0,
+        reported_value_priced=reported_priced,
+        implied_value_priced=implied_priced,
+        contributors=contributors,
+        detractors=detractors,
     )
 
 

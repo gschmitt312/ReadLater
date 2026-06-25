@@ -14,7 +14,15 @@ from app.edgar import (
     parse_info_table,
 )
 from app.figi import FigiResult
-from app.pipeline import ADD, CLOSED, NEW, REDUCE, UNCHANGED, build_report
+from app.pipeline import (
+    ADD,
+    CLOSED,
+    NEW,
+    REDUCE,
+    UNCHANGED,
+    build_report,
+    compute_performance,
+)
 from app.prices import Quote
 
 
@@ -135,6 +143,48 @@ def test_qoq_diff_classifies_and_computes():
     assert closed["TSLA"].activity == CLOSED
     assert closed["TSLA"].shares_delta == -1_000
     assert report.num_closed == 1
+
+
+def test_performance_reconciles_and_covers():
+    # Two priced names + one unpriced. Build via build_report to get PositionRows.
+    curr = [
+        Holding("WINNER", "COM", "111", 1_000_000.0, 10_000, "SH"),  # rp=100
+        Holding("LOSER", "COM", "222", 500_000.0, 5_000, "SH"),  # rp=100
+        Holding("UNPRICED", "COM", "333", 250_000.0, 1_000, "SH"),
+    ]
+    cf = FilingHoldings(_filing(date(2024, 12, 31), date(2025, 2, 1)), curr)
+    figi_map = {
+        "111": FigiResult("111", ticker="WIN", name="Winner"),
+        "222": FigiResult("222", ticker="LOSE", name="Loser"),
+        "333": FigiResult("333", ticker="UNP", name="Unpriced"),
+    }
+    quotes = {"WIN": Quote("WIN", price=150.0), "LOSE": Quote("LOSE", price=80.0)}
+    report = build_report(cf, None, figi_map, quotes, cik="1", manager_name="T")
+
+    perf = report.performance
+    assert perf is not None
+    # Priced book: reported 1.5M, implied 10k*150 + 5k*80 = 1.5M + 0.4M = 1.9M.
+    assert perf.reported_value_priced == 1_500_000.0
+    assert perf.implied_value_priced == 1_900_000.0
+    # Estimated return = 1.9/1.5 - 1 = +26.67%.
+    assert round(perf.estimated_return_pct, 2) == 26.67
+    # Coverage: priced 1.5M of total 1.75M.
+    assert round(perf.coverage_pct, 1) == round(1_500_000 / 1_750_000 * 100, 1)
+    # Contributions reconcile to the headline return.
+    total_contrib = sum(c.contribution_pct for c in perf.contributors) + sum(
+        c.contribution_pct for c in perf.detractors
+    )
+    assert round(total_contrib, 6) == round(perf.estimated_return_pct, 6)
+    assert [c.ticker for c in perf.contributors] == ["WIN"]
+    assert [c.ticker for c in perf.detractors] == ["LOSE"]
+
+
+def test_performance_empty_when_no_prices():
+    curr = [Holding("A", "COM", "111", 100.0, 10, "SH")]
+    cf = FilingHoldings(_filing(date(2024, 12, 31), date(2025, 2, 1)), curr)
+    report = build_report(cf, None, {}, {}, cik="1", manager_name="T")
+    assert report.performance.estimated_return_pct == 0.0
+    assert report.performance.coverage_pct == 0.0
 
 
 def test_unchanged_and_reduce_classification():
