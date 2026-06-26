@@ -12,6 +12,7 @@ from app.edgar import (
     Holding,
     aggregate_by_security,
     parse_info_table,
+    parse_search_hits,
 )
 from app.figi import FigiResult
 from app.pipeline import (
@@ -69,6 +70,33 @@ def test_parse_info_table_pre_2023_scales_thousands():
 def test_parse_info_table_post_2023_keeps_dollars():
     holdings = parse_info_table(INFO_TABLE_XML, in_dollars=True)
     assert holdings[0].value_usd == 562_542
+
+
+def test_parse_search_hits_dedupes_and_extracts_cik():
+    # Shape mirrors EDGAR full-text search (efts.sec.gov). Same filer appears on
+    # multiple filings; we want one entry per CIK, filer-first, order preserved.
+    payload = {
+        "hits": {
+            "total": {"value": 3},
+            "hits": [
+                {"_source": {"display_names": ["BERKSHIRE HATHAWAY INC  (0001067983) (Filer)"]}},
+                {"_source": {"display_names": ["BERKSHIRE HATHAWAY INC  (0001067983) (Filer)"]}},
+                {"_source": {"display_names": ["SCION ASSET MANAGEMENT, LLC  (CIK 0001649339) (Filer)"]}},
+                {"_source": {"display_names": []}},
+                {"_source": {}},
+            ]
+        }
+    }
+    results = parse_search_hits(payload)
+    assert results == [
+        {"cik": "0001067983", "name": "BERKSHIRE HATHAWAY INC"},
+        {"cik": "0001649339", "name": "SCION ASSET MANAGEMENT, LLC"},
+    ]
+
+
+def test_parse_search_hits_empty():
+    assert parse_search_hits({}) == []
+    assert parse_search_hits({"hits": {"hits": []}}) == []
 
 
 def test_aggregate_merges_duplicate_lines():

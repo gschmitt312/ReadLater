@@ -5,6 +5,7 @@ import { fmtUSD } from "./format.js";
 import HoldingsTable from "./components/HoldingsTable.jsx";
 import CompareView from "./components/CompareView.jsx";
 import PerformancePanel from "./components/PerformancePanel.jsx";
+import ManagerSearch from "./components/ManagerSearch.jsx";
 
 const EXAMPLES = [
   { label: "Berkshire Hathaway", id: "0001067983" },
@@ -52,22 +53,7 @@ export default function App() {
 
       {tab === "manager" ? (
         <main>
-          <form
-            className="search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              load();
-            }}
-          >
-            <input
-              placeholder="Enter ticker or CIK (e.g. 0001067983 for Berkshire)…"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-            />
-            <button type="submit" disabled={loading}>
-              {loading ? "Loading…" : "Load"}
-            </button>
-          </form>
+          <ManagerSearch onLoad={load} loading={loading} />
 
           <div className="examples">
             <span className="muted">Try:</span>

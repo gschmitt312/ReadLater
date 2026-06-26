@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
-from .edgar import EdgarError
+from .edgar import EdgarClient, EdgarError
 from .pipeline import PortfolioReport, run_pipeline
 
 app = FastAPI(title="13F Viewer", version=__version__)
@@ -47,6 +47,15 @@ def _cached_report(identifier: str) -> PortfolioReport:
 @app.get("/api/health")
 def health() -> dict:
     return {"status": "ok", "version": __version__}
+
+
+@app.get("/api/search")
+def search(q: str = Query(..., min_length=2, description="Fund name to search")) -> dict:
+    try:
+        with EdgarClient() as ec:
+            return {"results": ec.search_filers(q)}
+    except EdgarError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/api/manager/{identifier}")

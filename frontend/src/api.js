@@ -23,3 +23,8 @@ export function fetchManager(identifier, refresh = false) {
 export function fetchCompare(a, b) {
   return getJSON(`${BASE}/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
 }
+
+export async function searchManagers(q) {
+  const data = await getJSON(`${BASE}/search?q=${encodeURIComponent(q)}`);
+  return data.results || [];
+}

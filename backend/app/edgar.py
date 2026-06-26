@@ -15,12 +15,14 @@ import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Iterable, Optional
+from urllib.parse import quote
 from xml.etree import ElementTree as ET
 
 import httpx
 
 EDGAR_DATA = "https://data.sec.gov"
 EDGAR_WWW = "https://www.sec.gov"
+EDGAR_EFTS = "https://efts.sec.gov/LATEST"  # full-text search (entity lookup)
 
 # SEC amended Form 13F so that, for filings made on/after this date, the holding
 # value is reported in whole dollars instead of thousands of dollars.
@@ -148,6 +150,17 @@ class EdgarClient:
             return digits.zfill(10)
         raise EdgarError(f"Could not resolve identifier to a CIK: {identifier!r}")
 
+    def search_filers(self, query: str, limit: int = 10) -> list[dict]:
+        """Find 13F filers by name via EDGAR full-text search.
+
+        Returns ``[{"cik": "0001067983", "name": "BERKSHIRE HATHAWAY INC"}, ...]``
+        deduped by CIK, most relevant first. Used to map a fund name -> CIK when
+        the manager has no ticker.
+        """
+        url = f"{EDGAR_EFTS}/search-index?q={quote(query)}&forms=13F-HR"
+        payload = self._get(url).json()
+        return parse_search_hits(payload, limit=limit)
+
     # -- submissions / filings --------------------------------------------
     def get_submissions(self, cik: str) -> dict:
         cik = cik.zfill(10)
@@ -218,6 +231,35 @@ class EdgarClient:
         xml = self._get(url).text
         holdings = parse_info_table(xml, in_dollars=filing.filing_date >= DOLLARS_RULE_DATE)
         return FilingHoldings(filing=filing, holdings=holdings)
+
+
+# Matches "(0001067983)" and "(CIK 0001067983)" inside an EDGAR display name.
+_CIK_IN_NAME = re.compile(r"\(\s*(?:CIK\s*)?(\d{10})\s*\)")
+
+
+def parse_search_hits(payload: dict, limit: int = 10) -> list[dict]:
+    """Extract deduped ``{cik, name}`` entries from an EFTS search response.
+
+    Pure function (no I/O) so it can be unit-tested against a captured payload.
+    EFTS hits carry ``_source.display_names`` like
+    ``"BERKSHIRE HATHAWAY INC  (0001067983) (Filer)"``; the filer is first.
+    """
+    hits = (payload.get("hits") or {}).get("hits") or []
+    names_by_cik: dict[str, str] = {}
+    order: list[str] = []
+    for hit in hits:
+        display_names = (hit.get("_source") or {}).get("display_names") or []
+        for dn in display_names:
+            m = _CIK_IN_NAME.search(dn)
+            if not m:
+                continue
+            cik = m.group(1)
+            name = dn[: m.start()].strip()
+            if cik not in names_by_cik:
+                names_by_cik[cik] = name
+                order.append(cik)
+            break  # first display name on a 13F hit is the filing manager
+    return [{"cik": c, "name": names_by_cik[c]} for c in order[:limit]]
 
 
 def _parse_date(value: str) -> date:

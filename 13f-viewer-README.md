@@ -81,10 +81,18 @@ value-unit normalization and the QoQ diff classification.
 | Endpoint | Description |
 |---|---|
 | `GET /api/health` | liveness probe |
+| `GET /api/search?q=<name>` | find 13F filers by name → `[{cik, name}]` (for funds with no ticker) |
 | `GET /api/manager/{identifier}` | latest portfolio + QoQ diff (`?refresh=true` to bust the cache) |
 | `GET /api/compare?a=<id>&b=<id>` | overlapping holdings between two managers |
 
 `identifier` accepts a ticker, a bare CIK, or a zero-padded `CIK##########`.
+
+### Finding a fund by name
+
+Most hedge funds have no ticker, so the UI search box queries EDGAR's full-text
+search (`efts.sec.gov`) by name and shows matching filers with their CIK — type
+"Pershing Square", pick the result, and it loads. Pure-digit input is treated as
+a CIK and tickers still resolve directly, so all three entry styles work.
 
 ## Notes & caveats
 
