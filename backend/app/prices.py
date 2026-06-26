@@ -18,31 +18,55 @@ class Quote:
     currency: str = "USD"
 
 
+def yahoo_symbol(ticker: str) -> str:
+    """Translate a 13F/OpenFIGI ticker into the symbol Yahoo expects.
+
+    Share classes use a slash on EDGAR/OpenFIGI (``BRK/B``, ``LEN/B``) but a
+    dash on Yahoo (``BRK-B``).
+    """
+    return ticker.upper().strip().replace("/", "-")
+
+
 def fetch_prices(tickers: Iterable[str]) -> dict[str, Quote]:
-    """Return a ticker -> :class:`Quote` map. Missing prices yield ``price=None``."""
-    symbols = sorted({t.upper() for t in tickers if t})
-    if not symbols:
+    """Return a ticker -> :class:`Quote` map, keyed by the original (13F) ticker.
+
+    Missing prices yield ``price=None`` so the row still renders.
+    """
+    originals = sorted({t.upper() for t in tickers if t})
+    if not originals:
         return {}
 
-    try:
-        import yfinance as yf
-    except ImportError:  # pragma: no cover - exercised only without the dep
-        return {t: Quote(ticker=t) for t in symbols}
+    out: dict[str, Quote] = {t: Quote(ticker=t) for t in originals}
 
-    out: dict[str, Quote] = {t: Quote(ticker=t) for t in symbols}
     try:
-        data = yf.Tickers(" ".join(symbols))
+        import logging
+
+        import yfinance as yf
+
+        # yfinance logs noisy per-ticker "possibly delisted" lines straight to
+        # the console; a single missing quote is expected and handled, so quiet it.
+        logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+    except ImportError:  # pragma: no cover - exercised only without the dep
+        return out
+
+    # First Yahoo symbol wins if two originals collapse to the same one.
+    sym_to_original: dict[str, str] = {}
+    for t in originals:
+        sym_to_original.setdefault(yahoo_symbol(t), t)
+
+    try:
+        data = yf.Tickers(" ".join(sym_to_original))
     except Exception:
         return out
 
-    for sym in symbols:
+    for ysym, original in sym_to_original.items():
         try:
-            tk = data.tickers.get(sym)
+            tk = data.tickers.get(ysym)
             if tk is None:
                 continue
             price = _extract_price(tk)
             if price is not None:
-                out[sym] = Quote(ticker=sym, price=price)
+                out[original] = Quote(ticker=original, price=price)
         except Exception:
             continue
     return out

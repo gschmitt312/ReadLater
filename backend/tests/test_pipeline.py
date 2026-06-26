@@ -14,7 +14,8 @@ from app.edgar import (
     parse_info_table,
     parse_search_hits,
 )
-from app.figi import FigiResult
+from app.figi import FigiResult, _pick_listing
+from app.prices import yahoo_symbol
 from app.pipeline import (
     ADD,
     CLOSED,
@@ -97,6 +98,23 @@ def test_parse_search_hits_dedupes_and_extracts_cik():
 def test_parse_search_hits_empty():
     assert parse_search_hits({}) == []
     assert parse_search_hits({"hits": {"hits": []}}) == []
+
+
+def test_yahoo_symbol_converts_share_classes():
+    assert yahoo_symbol("BRK/B") == "BRK-B"
+    assert yahoo_symbol("LEN/B") == "LEN-B"
+    assert yahoo_symbol("hei/a") == "HEI-A"
+    assert yahoo_symbol("AAPL") == "AAPL"
+
+
+def test_pick_listing_prefers_us():
+    data = [
+        {"ticker": "CHV", "exchCode": "GR"},  # a non-US cross-listing first
+        {"ticker": "CVX", "exchCode": "US"},  # the US composite
+    ]
+    assert _pick_listing(data)["ticker"] == "CVX"
+    # No US listing -> fall back to the first entry.
+    assert _pick_listing([{"ticker": "X", "exchCode": "LN"}])["ticker"] == "X"
 
 
 def test_aggregate_merges_duplicate_lines():

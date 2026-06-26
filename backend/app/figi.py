@@ -21,6 +21,21 @@ OPENFIGI_URL = "https://api.openfigi.com/v3/mapping"
 DEFAULT_CACHE = Path(os.environ.get("FIGI_CACHE", Path(__file__).parent / "figi_cache.sqlite"))
 
 
+# OpenFIGI exchange codes for the US composite / primary listings, in order of
+# preference. 13F CUSIPs are US securities, so we want the US ticker (CVX, not a
+# foreign cross-listing) for Yahoo price lookups.
+_US_EXCH_PREFERENCE = ("US", "UN", "UW", "UQ", "UA", "UP", "UR", "UV")
+
+
+def _pick_listing(data: list[dict]) -> dict:
+    """Choose the best OpenFIGI listing for a CUSIP, preferring the US ticker."""
+    by_exch = {d.get("exchCode", ""): d for d in data}
+    for code in _US_EXCH_PREFERENCE:
+        if code in by_exch:
+            return by_exch[code]
+    return data[0]
+
+
 @dataclass
 class FigiResult:
     cusip: str
@@ -120,7 +135,7 @@ class FigiMapper:
         for cusip, entry in zip(cusips, payload):
             data = entry.get("data") if isinstance(entry, dict) else None
             if data:
-                best = data[0]
+                best = _pick_listing(data)
                 out[cusip] = FigiResult(
                     cusip=cusip,
                     ticker=best.get("ticker", "") or "",
