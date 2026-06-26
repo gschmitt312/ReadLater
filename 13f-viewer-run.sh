@@ -10,10 +10,17 @@ if [[ -z "${SEC_USER_AGENT:-}" ]]; then
   echo "  export SEC_USER_AGENT=\"Your Name <your-email>\""
 fi
 
+# Pick an available Python (macOS typically has python3, not python).
+PY="$(command -v python3 || command -v python || true)"
+if [[ -z "$PY" ]]; then
+  echo "ERROR: Python 3 not found. Install it (e.g. 'brew install python') and retry."
+  exit 1
+fi
+
 # Backend
 cd "$ROOT/backend"
 if [[ ! -d .venv ]]; then
-  python -m venv .venv
+  "$PY" -m venv .venv
   ./.venv/bin/pip install -r requirements.txt
 fi
 ./.venv/bin/uvicorn app.main:app --reload --port 8000 &
